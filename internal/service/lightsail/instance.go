@@ -53,6 +53,11 @@ func ResourceInstance() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+			"ip_address_type": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Default:  "dualstack",
+			},
 
 			// Optional attributes
 			"key_pair_name": {
@@ -152,6 +157,10 @@ func resourceInstanceCreate(d *schema.ResourceData, meta interface{}) error {
 		req.Tags = Tags(tags.IgnoreAWS())
 	}
 
+	if v, ok := d.GetOk("ip_address_type"); ok {
+		req.IpAddressType = aws.String(v.(string))
+	}
+
 	resp, err := conn.CreateInstances(&req)
 	if err != nil {
 		return err
@@ -233,6 +242,7 @@ func resourceInstanceRead(d *schema.ResourceData, meta interface{}) error {
 	d.Set("is_static_ip", i.IsStaticIp)
 	d.Set("private_ip_address", i.PrivateIpAddress)
 	d.Set("public_ip_address", i.PublicIpAddress)
+	d.Set("ip_address_type", i.IpAddressType)
 
 	tags := KeyValueTags(i.Tags).IgnoreAWS().IgnoreConfig(ignoreTagsConfig)
 
@@ -287,6 +297,17 @@ func resourceInstanceUpdate(d *schema.ResourceData, meta interface{}) error {
 
 		if err := UpdateTags(conn, d.Id(), o, n); err != nil {
 			return fmt.Errorf("error updating Lightsail Instance (%s) tags: %s", d.Id(), err)
+		}
+	}
+
+	if d.HasChange("ip_address_type") {
+		_, err := conn.SetIpAddressType(&lightsail.SetIpAddressTypeInput{
+			ResourceName:  aws.String(d.Id()),
+			ResourceType:  aws.String(lightsail.ResourceTypeInstance),
+			IpAddressType: aws.String(d.Get("ip_address_type").(string)),
+		})
+		if err != nil {
+			return err
 		}
 	}
 
